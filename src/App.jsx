@@ -128,6 +128,13 @@ async function convertTo45(imgEl, mode, options) {
 
     tempCtx.filter = "none";
 
+    // =====================================================
+    // DARKEN BACKGROUND SLIGHTLY
+    // =====================================================
+
+    tempCtx.fillStyle = "rgba(0,0,0,0.18)";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
     // Crop center into background canvas
     bgCtx.drawImage(
       tempCanvas,
