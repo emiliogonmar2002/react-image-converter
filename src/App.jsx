@@ -66,8 +66,24 @@ function drawCover(ctx, img, dx, dy, dw, dh) {
 // ======================================================
 
 async function convertTo45(imgEl, mode, options) {
-  const width = imgEl.naturalWidth ?? imgEl.width;
-  const height = imgEl.naturalHeight ?? imgEl.height;
+  // =====================================================
+  // SAFE MOBILE DIMENSIONS
+  // Prevent iPhone canvas crashes
+  // =====================================================
+
+  const originalWidth = imgEl.naturalWidth ?? imgEl.width;
+  const originalHeight = imgEl.naturalHeight ?? imgEl.height;
+
+  const MAX_DIMENSION = 2500;
+
+  let scaleDown = 1;
+
+  if (originalHeight > MAX_DIMENSION) {
+    scaleDown = MAX_DIMENSION / originalHeight;
+  }
+
+  const width = Math.round(originalWidth * scaleDown);
+  const height = Math.round(originalHeight * scaleDown);
 
   if (width > height) {
     throw new Error(
@@ -75,7 +91,10 @@ async function convertTo45(imgEl, mode, options) {
     );
   }
 
-  // Match python logic
+  // =====================================================
+  // TARGET 4x5 SIZE
+  // =====================================================
+
   let newWidth = Math.round(height * TARGET_RATIO);
   let newHeight = height;
 
@@ -84,9 +103,9 @@ async function convertTo45(imgEl, mode, options) {
     newHeight = Math.round(width / TARGET_RATIO);
   }
 
-  // ======================================================
-  // BACKGROUND
-  // ======================================================
+  // =====================================================
+  // BACKGROUND CANVAS
+  // =====================================================
 
   const bgCanvas = document.createElement("canvas");
 
@@ -99,66 +118,77 @@ async function convertTo45(imgEl, mode, options) {
     throw new Error("Canvas not supported");
   }
 
+  // =====================================================
+  // WHITE MODE
+  // =====================================================
+
   if (mode === "white") {
     bgCtx.fillStyle = "#ffffff";
+
     bgCtx.fillRect(0, 0, newWidth, newHeight);
-  } else if (mode === "blur") {
+  }
+
+  // =====================================================
+  // BLUR MODE
+  // =====================================================
+  else if (mode === "blur") {
     // =====================================================
-    // PHOTOSHOP-LIKE BLUR
+    // MOBILE SAFE BLUR
     // =====================================================
 
-    const overscan = Math.ceil(options.gaussianBlurRadius * 4);
+    const blurCanvas = document.createElement("canvas");
 
-    const tempCanvas = document.createElement("canvas");
+    blurCanvas.width = newWidth;
+    blurCanvas.height = newHeight;
 
-    tempCanvas.width = newWidth + overscan * 2;
-    tempCanvas.height = newHeight + overscan * 2;
+    const blurCtx = blurCanvas.getContext("2d");
 
-    const tempCtx = tempCanvas.getContext("2d");
-
-    if (!tempCtx) {
+    if (!blurCtx) {
       throw new Error("Canvas not supported");
     }
 
-    // Apply blur BEFORE drawing
-    tempCtx.filter = `blur(${options.gaussianBlurRadius}px)`;
+    // Slight zoom like Photoshop
 
-    // Slight zoom increase
     const zoomScale = 1.08;
 
-    const drawW = tempCanvas.width * zoomScale;
-    const drawH = tempCanvas.height * zoomScale;
+    const drawW = newWidth * zoomScale;
+    const drawH = newHeight * zoomScale;
 
-    const offsetX = (tempCanvas.width - drawW) / 2;
-    const offsetY = (tempCanvas.height - drawH) / 2;
+    const offsetX = (newWidth - drawW) / 2;
+    const offsetY = (newHeight - drawH) / 2;
 
-    drawCover(tempCtx, imgEl, offsetX, offsetY, drawW, drawH);
+    drawCover(blurCtx, imgEl, offsetX, offsetY, drawW, drawH);
 
-    tempCtx.filter = "none";
+    // Convert canvas into image for Safari compatibility
 
-    // Slight darkening
-    tempCtx.fillStyle = "rgba(0,0,0,0.18)";
-    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    const dataUrl = blurCanvas.toDataURL();
 
-    // Crop into final background
-    bgCtx.drawImage(
-      tempCanvas,
-      overscan,
-      overscan,
-      newWidth,
-      newHeight,
-      0,
-      0,
-      newWidth,
-      newHeight,
-    );
+    const tempImg = await new Promise((resolve, reject) => {
+      const img = new Image();
+
+      img.onload = () => resolve(img);
+
+      img.onerror = reject;
+
+      img.src = dataUrl;
+    });
+
+    // Draw blurred background
+
+    bgCtx.save();
+
+    bgCtx.filter = `blur(${options.gaussianBlurRadius}px) brightness(0.82)`;
+
+    bgCtx.drawImage(tempImg, -40, -40, newWidth + 80, newHeight + 80);
+
+    bgCtx.restore();
   } else {
     throw new Error("Invalid mode");
   }
 
-  // ======================================================
+  // =====================================================
   // FINAL CANVAS
-  // ======================================================
+  // =====================================================
 
   const canvas = document.createElement("canvas");
 
@@ -171,15 +201,21 @@ async function convertTo45(imgEl, mode, options) {
     throw new Error("Canvas not supported");
   }
 
+  // Background
+
   ctx.drawImage(bgCanvas, 0, 0);
 
-  // Center image
+  // =====================================================
+  // CENTER FOREGROUND IMAGE
+  // =====================================================
+
   const pasteX = Math.floor((newWidth - width) / 2);
+
   const pasteY = Math.floor((newHeight - height) / 2);
 
-  // ======================================================
+  // =====================================================
   // SHADOW
-  // ======================================================
+  // =====================================================
 
   if (mode === "blur") {
     ctx.save();
@@ -200,9 +236,9 @@ async function convertTo45(imgEl, mode, options) {
     ctx.restore();
   }
 
-  // ======================================================
-  // FOREGROUND IMAGE
-  // ======================================================
+  // =====================================================
+  // MAIN IMAGE
+  // =====================================================
 
   ctx.drawImage(imgEl, pasteX, pasteY, width, height);
 
@@ -215,6 +251,8 @@ async function convertTo45(imgEl, mode, options) {
 
 function App() {
   const fileInputRef = useRef(null);
+
+  const downloadSectionRef = useRef(null);
 
   const [file, setFile] = useState(null);
 
@@ -232,20 +270,33 @@ function App() {
 
   const [downloadName, setDownloadName] = useState("converted.png");
 
-  const downloadSectionRef = useRef(null);
-
   const [opts, setOpts] = useState(DEFAULTS);
 
   const canConvert = useMemo(() => !!file && !busy, [file, busy]);
 
-  // Cleanup object URLs
+  // =====================================================
+  // CLEANUP OBJECT URLS
+  // =====================================================
+
   useEffect(() => {
     return () => {
-      if (inputPreviewUrl) URL.revokeObjectURL(inputPreviewUrl);
-      if (outputPreviewUrl) URL.revokeObjectURL(outputPreviewUrl);
-      if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+      if (inputPreviewUrl) {
+        URL.revokeObjectURL(inputPreviewUrl);
+      }
+
+      if (outputPreviewUrl) {
+        URL.revokeObjectURL(outputPreviewUrl);
+      }
+
+      if (downloadUrl) {
+        URL.revokeObjectURL(downloadUrl);
+      }
     };
   }, [inputPreviewUrl, outputPreviewUrl, downloadUrl]);
+
+  // =====================================================
+  // RESET OUTPUTS
+  // =====================================================
 
   function resetOutputs() {
     setError("");
@@ -259,8 +310,13 @@ function App() {
     }
 
     setOutputPreviewUrl("");
+
     setDownloadUrl("");
   }
+
+  // =====================================================
+  // FILE PICKER
+  // =====================================================
 
   async function onPickFile(e) {
     const f = e.target.files?.[0];
@@ -279,6 +335,10 @@ function App() {
       setInputPreviewUrl("");
     }
   }
+
+  // =====================================================
+  // CONVERT
+  // =====================================================
 
   async function onConvert() {
     if (!file) return;
@@ -320,22 +380,31 @@ function App() {
       const url = URL.createObjectURL(blob);
 
       setDownloadUrl(url);
+
       setOutputPreviewUrl(url);
+
       setDownloadName(outName);
 
-      // Smooth auto-scroll to download section
+      // =================================================
+      // AUTO SCROLL
+      // =================================================
+
       setTimeout(() => {
         downloadSectionRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "center",
         });
-      }, 100);
+      }, 120);
     } catch (e) {
       setError(e?.message ?? String(e));
     } finally {
       setBusy(false);
     }
   }
+
+  // =====================================================
+  // RENDER
+  // =====================================================
 
   return (
     <main className="app">
@@ -346,17 +415,13 @@ function App() {
       <header className="header">
         <div>
           <h1>Instagram 4×5 Converter</h1>
+
+          <p className="subtitle">
+            Convert vertical 4×6 photos into Instagram-ready 4×5 posts with
+            white borders or cinematic blurred backgrounds.
+          </p>
         </div>
       </header>
-      <p
-        style={{
-          color: "var(--muted)",
-          fontSize: "14px",
-          marginBottom: "40px",
-        }}
-      >
-        by @eg.figureshots
-      </p>
 
       {/* ========================================= */}
       {/* MAIN PANEL */}
@@ -516,7 +581,7 @@ function App() {
             <h3>Original</h3>
 
             {inputPreviewUrl ? (
-              <img src={inputPreviewUrl} alt="Original upload preview" />
+              <img src={inputPreviewUrl} alt="Original preview" />
             ) : (
               <div className="placeholder">Choose an image to preview it</div>
             )}
@@ -539,12 +604,11 @@ function App() {
       </section>
 
       {/* ========================================= */}
-      {/* DOWNLOAD SECTION */}
+      {/* DOWNLOAD */}
       {/* ========================================= */}
 
       {downloadUrl && (
         <section className="downloadSection" ref={downloadSectionRef}>
-          {" "}
           <div className="downloadCard">
             <h2>Your Instagram-ready image is ready</h2>
 

@@ -1,8 +1,31 @@
 @font-face {
   font-family: "Adumu";
-  src: url("/fonts/Adumu.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
+  src:
+    url("/fonts/Adumu.woff2") format("woff2"),
+    url("/fonts/Adumu.woff") format("woff");
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+}
+
+button,
+input,
+select,
+textarea,
+a {
+  font: inherit;
+  color: inherit;
 }
 
 :root {
