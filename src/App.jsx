@@ -381,12 +381,6 @@ function App() {
           <button type="button" disabled={!canConvert} onClick={onConvert}>
             {busy ? "Converting…" : "Convert to 4×5"}
           </button>
-
-          {downloadUrl && (
-            <a className="button" href={downloadUrl} download={downloadName}>
-              Download PNG
-            </a>
-          )}
         </div>
 
         {error && <div className="error">{error}</div>}
@@ -418,11 +412,48 @@ function App() {
         </div>
       </section>
 
+      {downloadUrl && (
+        <section className="downloadSection">
+          <div className="downloadCard">
+            <h2>Your Instagram-ready image is ready</h2>
+
+            <p>Download your converted 4×5 PNG below.</p>
+
+            <a
+              className="downloadBigButton"
+              href={downloadUrl}
+              download={downloadName}
+            >
+              Download PNG
+            </a>
+          </div>
+        </section>
+      )}
+
       <footer className="footer">
-        <p>
-          Note: runs fully in your browser (no upload). Only vertical images are
-          supported, matching the Python script.
-        </p>
+        <a
+          href="https://www.instagram.com/eg.figureshots/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="instagramFooter"
+        >
+          <div className="instagramBadge">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M7.75 2C4.574 2 2 4.574 2 7.75v8.5C2 19.426 4.574 22 7.75 22h8.5C19.426 22 22 19.426 22 16.25v-8.5C22 4.574 19.426 2 16.25 2h-8.5zm0 2h8.5A3.75 3.75 0 0 1 20 7.75v8.5A3.75 3.75 0 0 1 16.25 20h-8.5A3.75 3.75 0 0 1 4 16.25v-8.5A3.75 3.75 0 0 1 7.75 4zm8.75 1a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zM12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z" />
+            </svg>
+
+            <div className="instagramText">
+              <span className="followLabel">Follow me</span>
+              <span className="handle">@eg.figureshots</span>
+            </div>
+          </div>
+        </a>
       </footer>
     </main>
   );

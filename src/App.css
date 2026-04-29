@@ -19,13 +19,25 @@
     Roboto,
     Helvetica,
     Arial,
-    'Apple Color Emoji',
-    'Segoe UI Emoji';
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
   color: var(--text);
   background:
-    radial-gradient(1000px 650px at 20% 10%, rgba(74, 163, 255, 0.25), transparent 60%),
-    radial-gradient(900px 550px at 80% 20%, rgba(255, 59, 59, 0.18), transparent 55%),
-    radial-gradient(800px 500px at 55% 90%, rgba(255, 210, 74, 0.14), transparent 60%),
+    radial-gradient(
+      1000px 650px at 20% 10%,
+      rgba(74, 163, 255, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 550px at 80% 20%,
+      rgba(255, 59, 59, 0.18),
+      transparent 55%
+    ),
+    radial-gradient(
+      800px 500px at 55% 90%,
+      rgba(255, 210, 74, 0.14),
+      transparent 60%
+    ),
     linear-gradient(180deg, #070a14 0%, var(--bg) 60%, #05060c 100%);
   min-height: 100vh;
 }
@@ -154,15 +166,19 @@ label {
   color: var(--muted);
 }
 
-input[type='file'] {
+input[type="file"] {
   width: 100%;
   max-width: 520px;
   color: var(--muted);
 }
 
-input[type='file']::file-selector-button {
+input[type="file"]::file-selector-button {
   border: 1px solid rgba(255, 59, 59, 0.85);
-  background: linear-gradient(135deg, rgba(255, 59, 59, 1), rgba(255, 59, 59, 0.75));
+  background: linear-gradient(
+    135deg,
+    rgba(255, 59, 59, 1),
+    rgba(255, 59, 59, 0.75)
+  );
   color: #220608;
   padding: 10px 12px;
   border-radius: 14px;
@@ -172,7 +188,7 @@ input[type='file']::file-selector-button {
   cursor: pointer;
 }
 
-input[type='number'] {
+input[type="number"] {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -182,7 +198,7 @@ input[type='number'] {
   outline: none;
 }
 
-input[type='number']:focus {
+input[type="number"]:focus {
   border-color: rgba(74, 163, 255, 0.7);
   box-shadow: 0 0 0 3px rgba(74, 163, 255, 0.18);
 }
@@ -191,7 +207,11 @@ button,
 a.button {
   appearance: none;
   border: 1px solid rgba(74, 163, 255, 0.8);
-  background: linear-gradient(135deg, rgba(74, 163, 255, 1), rgba(74, 163, 255, 0.72));
+  background: linear-gradient(
+    135deg,
+    rgba(74, 163, 255, 1),
+    rgba(74, 163, 255, 0.72)
+  );
   color: #071022;
   padding: 11px 14px;
   border-radius: 14px;
@@ -225,7 +245,11 @@ button:disabled {
 }
 
 a.button {
-  background: linear-gradient(135deg, rgba(255, 210, 74, 1), rgba(255, 210, 74, 0.72));
+  background: linear-gradient(
+    135deg,
+    rgba(255, 210, 74, 1),
+    rgba(255, 210, 74, 0.72)
+  );
   border-color: rgba(255, 210, 74, 0.85);
   color: #1a1404;
 }
@@ -307,4 +331,152 @@ a.button {
   .badges {
     justify-content: flex-start;
   }
+}
+
+.footer {
+  margin-top: 60px;
+  padding: 30px 20px 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.instagramFooter {
+  text-decoration: none;
+}
+
+.instagramBadge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  padding: 14px 22px;
+
+  border-radius: 18px;
+
+  background: rgba(255, 255, 255, 0.04);
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+
+  backdrop-filter: blur(10px);
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+
+  color: white;
+}
+
+.instagramBadge:hover {
+  transform: translateY(-2px);
+
+  background: rgba(255, 255, 255, 0.07);
+
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.instagramText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.followLabel {
+  font-size: 12px;
+  opacity: 0.65;
+  letter-spacing: 0.04em;
+}
+
+.handle {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.downloadSection {
+  margin-top: 32px;
+
+  display: flex;
+  justify-content: center;
+}
+
+.downloadCard {
+  width: 100%;
+
+  max-width: 680px;
+
+  padding: 34px 28px;
+
+  border-radius: 24px;
+
+  border: 1px solid var(--border);
+
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.03)
+  );
+
+  backdrop-filter: blur(12px);
+
+  box-shadow: var(--shadow);
+
+  text-align: center;
+}
+
+.downloadCard h2 {
+  margin: 0;
+
+  font-size: 24px;
+
+  letter-spacing: -0.03em;
+}
+
+.downloadCard p {
+  margin-top: 10px;
+
+  color: var(--muted);
+
+  font-size: 14px;
+}
+
+.downloadBigButton {
+  margin-top: 24px;
+
+  appearance: none;
+
+  border: 1px solid rgba(255, 210, 74, 0.85);
+
+  background: linear-gradient(
+    135deg,
+    rgba(255, 210, 74, 1),
+    rgba(255, 210, 74, 0.72)
+  );
+
+  color: #1a1404;
+
+  padding: 16px 26px;
+
+  border-radius: 18px;
+
+  font-size: 16px;
+  font-weight: 900;
+
+  letter-spacing: 0.03em;
+
+  text-decoration: none;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  transition:
+    transform 0.12s ease,
+    filter 0.2s ease;
+}
+
+.downloadBigButton:hover {
+  filter: brightness(1.06);
+
+  transform: translateY(-2px);
 }
