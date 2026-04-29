@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import "./App.css";
 
 const TARGET_RATIO = 4 / 5;
@@ -19,15 +19,19 @@ function clamp(n, min, max) {
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
+
     const img = new Image();
+
     img.onload = () => {
       URL.revokeObjectURL(url);
       resolve(img);
     };
+
     img.onerror = (e) => {
       URL.revokeObjectURL(url);
       reject(e);
     };
+
     img.src = url;
   });
 }
@@ -38,31 +42,28 @@ function canvasToBlob(canvas, type = "image/png", quality) {
   });
 }
 
-// Fit like PIL.ImageOps.fit: cover the target box, centered, preserving aspect.
+// ======================================================
+// COVER FIT (Photoshop-like fill)
+// ======================================================
+
 function drawCover(ctx, img, dx, dy, dw, dh) {
   const iw = img.naturalWidth ?? img.width;
   const ih = img.naturalHeight ?? img.height;
 
   const scale = Math.max(dw / iw, dh / ih);
+
   const sw = dw / scale;
   const sh = dh / scale;
+
   const sx = (iw - sw) / 2;
   const sy = (ih - sh) / 2;
 
   ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
-function drawContain(ctx, img, dx, dy, dw, dh) {
-  const iw = img.naturalWidth ?? img.width;
-  const ih = img.naturalHeight ?? img.height;
-  const scale = Math.min(dw / iw, dh / ih);
-  const tw = iw * scale;
-  const th = ih * scale;
-  const x = dx + (dw - tw) / 2;
-  const y = dy + (dh - th) / 2;
-  ctx.drawImage(img, x, y, tw, th);
-  return { x, y, w: tw, h: th };
-}
+// ======================================================
+// MAIN CONVERSION
+// ======================================================
 
 async function convertTo45(imgEl, mode, options) {
   const width = imgEl.naturalWidth ?? imgEl.width;
@@ -83,13 +84,20 @@ async function convertTo45(imgEl, mode, options) {
     newHeight = Math.round(width / TARGET_RATIO);
   }
 
-  // Background canvas
+  // ======================================================
+  // BACKGROUND
+  // ======================================================
+
   const bgCanvas = document.createElement("canvas");
+
   bgCanvas.width = newWidth;
   bgCanvas.height = newHeight;
+
   const bgCtx = bgCanvas.getContext("2d");
 
-  if (!bgCtx) throw new Error("Canvas not supported");
+  if (!bgCtx) {
+    throw new Error("Canvas not supported");
+  }
 
   if (mode === "white") {
     bgCtx.fillStyle = "#ffffff";
@@ -99,10 +107,10 @@ async function convertTo45(imgEl, mode, options) {
     // PHOTOSHOP-LIKE BLUR
     // =====================================================
 
-    // Overscan prevents blur edge clipping
     const overscan = Math.ceil(options.gaussianBlurRadius * 4);
 
     const tempCanvas = document.createElement("canvas");
+
     tempCanvas.width = newWidth + overscan * 2;
     tempCanvas.height = newHeight + overscan * 2;
 
@@ -115,7 +123,7 @@ async function convertTo45(imgEl, mode, options) {
     // Apply blur BEFORE drawing
     tempCtx.filter = `blur(${options.gaussianBlurRadius}px)`;
 
-    // Slight zoom increase like Photoshop
+    // Slight zoom increase
     const zoomScale = 1.08;
 
     const drawW = tempCanvas.width * zoomScale;
@@ -128,14 +136,11 @@ async function convertTo45(imgEl, mode, options) {
 
     tempCtx.filter = "none";
 
-    // =====================================================
-    // DARKEN BACKGROUND SLIGHTLY
-    // =====================================================
-
+    // Slight darkening
     tempCtx.fillStyle = "rgba(0,0,0,0.18)";
     tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-    // Crop center into background canvas
+    // Crop into final background
     bgCtx.drawImage(
       tempCanvas,
       overscan,
@@ -151,71 +156,123 @@ async function convertTo45(imgEl, mode, options) {
     throw new Error("Invalid mode");
   }
 
-  // Final canvas
+  // ======================================================
+  // FINAL CANVAS
+  // ======================================================
+
   const canvas = document.createElement("canvas");
+
   canvas.width = newWidth;
   canvas.height = newHeight;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas not supported");
 
-  // draw background
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    throw new Error("Canvas not supported");
+  }
+
   ctx.drawImage(bgCanvas, 0, 0);
 
-  // Foreground position (center)
+  // Center image
   const pasteX = Math.floor((newWidth - width) / 2);
   const pasteY = Math.floor((newHeight - height) / 2);
 
+  // ======================================================
+  // SHADOW
+  // ======================================================
+
   if (mode === "blur") {
-    // Drop shadow (approximation of the PIL alpha composite shadow)
     ctx.save();
+
     ctx.translate(
       pasteX + options.shadowOffsetX,
       pasteY + options.shadowOffsetY,
     );
+
     ctx.shadowColor = `rgba(0,0,0,${options.shadowOpacity})`;
+
     ctx.shadowBlur = options.shadowBlur;
-    // Draw a filled rect to produce a soft silhouette; using image alpha as mask is complex in canvas.
-    // Instead: draw the image itself with shadow enabled and globalAlpha.
+
     ctx.globalAlpha = 1;
+
     ctx.drawImage(imgEl, 0, 0, width, height);
+
     ctx.restore();
   }
 
-  // Paste main image
+  // ======================================================
+  // FOREGROUND IMAGE
+  // ======================================================
+
   ctx.drawImage(imgEl, pasteX, pasteY, width, height);
 
   return canvas;
 }
 
+// ======================================================
+// APP
+// ======================================================
+
 function App() {
   const fileInputRef = useRef(null);
+
   const [file, setFile] = useState(null);
+
   const [mode, setMode] = useState("white");
+
   const [busy, setBusy] = useState(false);
+
   const [error, setError] = useState("");
+
   const [inputPreviewUrl, setInputPreviewUrl] = useState("");
+
   const [outputPreviewUrl, setOutputPreviewUrl] = useState("");
+
   const [downloadUrl, setDownloadUrl] = useState("");
+
   const [downloadName, setDownloadName] = useState("converted.png");
+
+  const downloadSectionRef = useRef(null);
 
   const [opts, setOpts] = useState(DEFAULTS);
 
   const canConvert = useMemo(() => !!file && !busy, [file, busy]);
 
+  // Cleanup object URLs
+  useEffect(() => {
+    return () => {
+      if (inputPreviewUrl) URL.revokeObjectURL(inputPreviewUrl);
+      if (outputPreviewUrl) URL.revokeObjectURL(outputPreviewUrl);
+      if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+    };
+  }, [inputPreviewUrl, outputPreviewUrl, downloadUrl]);
+
   function resetOutputs() {
     setError("");
-    if (outputPreviewUrl) URL.revokeObjectURL(outputPreviewUrl);
-    if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+
+    if (outputPreviewUrl) {
+      URL.revokeObjectURL(outputPreviewUrl);
+    }
+
+    if (downloadUrl) {
+      URL.revokeObjectURL(downloadUrl);
+    }
+
     setOutputPreviewUrl("");
     setDownloadUrl("");
   }
 
   async function onPickFile(e) {
     const f = e.target.files?.[0];
+
     resetOutputs();
+
     setFile(f ?? null);
 
-    if (inputPreviewUrl) URL.revokeObjectURL(inputPreviewUrl);
+    if (inputPreviewUrl) {
+      URL.revokeObjectURL(inputPreviewUrl);
+    }
+
     if (f) {
       setInputPreviewUrl(URL.createObjectURL(f));
     } else {
@@ -225,7 +282,9 @@ function App() {
 
   async function onConvert() {
     if (!file) return;
+
     resetOutputs();
+
     setBusy(true);
 
     try {
@@ -235,24 +294,42 @@ function App() {
         gaussianBlurRadius: clamp(Number(opts.gaussianBlurRadius) || 0, 0, 200),
 
         shadowOpacity: clamp(Number(opts.shadowOpacity) || 0, 0, 1),
+
         shadowOffsetX: Math.round(Number(opts.shadowOffsetX) || 0),
+
         shadowOffsetY: Math.round(Number(opts.shadowOffsetY) || 0),
+
         shadowBlur: clamp(Number(opts.shadowBlur) || 0, 0, 300),
       };
 
       const canvas = await convertTo45(imgEl, mode, safeOpts);
+
       const blob = await canvasToBlob(canvas, "image/png");
-      if (!blob) throw new Error("Failed to encode PNG");
+
+      if (!blob) {
+        throw new Error("Failed to encode PNG");
+      }
 
       const base = file.name.replace(/\.[^/.]+$/, "");
+
       const suffix =
         mode === "blur" ? "_IG_BLUR" : mode === "white" ? "_IG_WHITE" : "_IG";
+
       const outName = `${base}${suffix}.png`;
 
       const url = URL.createObjectURL(blob);
+
       setDownloadUrl(url);
       setOutputPreviewUrl(url);
       setDownloadName(outName);
+
+      // Smooth auto-scroll to download section
+      setTimeout(() => {
+        downloadSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 100);
     } catch (e) {
       setError(e?.message ?? String(e));
     } finally {
@@ -262,13 +339,32 @@ function App() {
 
   return (
     <main className="app">
+      {/* ========================================= */}
+      {/* HEADER */}
+      {/* ========================================= */}
+
       <header className="header">
         <div>
           <h1>Instagram 4×5 Converter</h1>
         </div>
       </header>
+      <p
+        style={{
+          color: "var(--muted)",
+          fontSize: "14px",
+          marginBottom: "40px",
+        }}
+      >
+        by @eg.figureshots
+      </p>
+
+      {/* ========================================= */}
+      {/* MAIN PANEL */}
+      {/* ========================================= */}
 
       <div className="panel">
+        {/* FILE PICKER */}
+
         <div className="row">
           <input
             ref={fileInputRef}
@@ -277,6 +373,8 @@ function App() {
             onChange={onPickFile}
           />
         </div>
+
+        {/* MODES */}
 
         <div className="row">
           <div className="modes">
@@ -303,6 +401,8 @@ function App() {
             </label>
           </div>
         </div>
+
+        {/* SETTINGS */}
 
         {mode === "blur" && (
           <fieldset className="fieldset">
@@ -334,7 +434,10 @@ function App() {
                   step="0.05"
                   value={opts.shadowOpacity}
                   onChange={(e) =>
-                    setOpts((o) => ({ ...o, shadowOpacity: e.target.value }))
+                    setOpts((o) => ({
+                      ...o,
+                      shadowOpacity: e.target.value,
+                    }))
                   }
                 />
               </label>
@@ -345,7 +448,10 @@ function App() {
                   type="number"
                   value={opts.shadowOffsetX}
                   onChange={(e) =>
-                    setOpts((o) => ({ ...o, shadowOffsetX: e.target.value }))
+                    setOpts((o) => ({
+                      ...o,
+                      shadowOffsetX: e.target.value,
+                    }))
                   }
                 />
               </label>
@@ -356,7 +462,10 @@ function App() {
                   type="number"
                   value={opts.shadowOffsetY}
                   onChange={(e) =>
-                    setOpts((o) => ({ ...o, shadowOffsetY: e.target.value }))
+                    setOpts((o) => ({
+                      ...o,
+                      shadowOffsetY: e.target.value,
+                    }))
                   }
                 />
               </label>
@@ -369,7 +478,10 @@ function App() {
                   max="300"
                   value={opts.shadowBlur}
                   onChange={(e) =>
-                    setOpts((o) => ({ ...o, shadowBlur: e.target.value }))
+                    setOpts((o) => ({
+                      ...o,
+                      shadowBlur: e.target.value,
+                    }))
                   }
                 />
               </label>
@@ -377,21 +489,32 @@ function App() {
           </fieldset>
         )}
 
+        {/* CONVERT BUTTON */}
+
         <div className="row actions">
           <button type="button" disabled={!canConvert} onClick={onConvert}>
             {busy ? "Converting…" : "Convert to 4×5"}
           </button>
         </div>
 
+        {/* ERROR */}
+
         {error && <div className="error">{error}</div>}
       </div>
+
+      {/* ========================================= */}
+      {/* PREVIEW */}
+      {/* ========================================= */}
 
       <section className="preview">
         <h2>Preview</h2>
 
         <div className="previewGrid">
+          {/* ORIGINAL */}
+
           <div className="previewCard">
             <h3>Original</h3>
+
             {inputPreviewUrl ? (
               <img src={inputPreviewUrl} alt="Original upload preview" />
             ) : (
@@ -399,8 +522,11 @@ function App() {
             )}
           </div>
 
+          {/* RESULT */}
+
           <div className="previewCard">
             <h3>Result</h3>
+
             {outputPreviewUrl ? (
               <img src={outputPreviewUrl} alt="Converted result preview" />
             ) : (
@@ -412,12 +538,20 @@ function App() {
         </div>
       </section>
 
+      {/* ========================================= */}
+      {/* DOWNLOAD SECTION */}
+      {/* ========================================= */}
+
       {downloadUrl && (
-        <section className="downloadSection">
+        <section className="downloadSection" ref={downloadSectionRef}>
+          {" "}
           <div className="downloadCard">
             <h2>Your Instagram-ready image is ready</h2>
 
-            <p>Download your converted 4×5 PNG below.</p>
+            <p>
+              Download your converted 4×5 PNG below and upload directly to
+              Instagram.
+            </p>
 
             <a
               className="downloadBigButton"
@@ -430,6 +564,10 @@ function App() {
         </section>
       )}
 
+      {/* ========================================= */}
+      {/* FOOTER */}
+      {/* ========================================= */}
+
       <footer className="footer">
         <a
           href="https://www.instagram.com/eg.figureshots/"
@@ -438,18 +576,15 @@ function App() {
           className="instagramFooter"
         >
           <div className="instagramBadge">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M7.75 2C4.574 2 2 4.574 2 7.75v8.5C2 19.426 4.574 22 7.75 22h8.5C19.426 22 22 19.426 22 16.25v-8.5C22 4.574 19.426 2 16.25 2h-8.5zm0 2h8.5A3.75 3.75 0 0 1 20 7.75v8.5A3.75 3.75 0 0 1 16.25 20h-8.5A3.75 3.75 0 0 1 4 16.25v-8.5A3.75 3.75 0 0 1 7.75 4zm8.75 1a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zM12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z" />
-            </svg>
+            <img
+              src="/Logo2025.png"
+              alt="EG Figure Shots logo"
+              className="instagramLogo"
+            />
 
             <div className="instagramText">
               <span className="followLabel">Follow me</span>
+
               <span className="handle">@eg.figureshots</span>
             </div>
           </div>
